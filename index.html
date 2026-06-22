@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="description" content="Plataforma inteligente para organização e otimização de estudos para concursos públicos" />
+  <title>Aprovado — Estudos para Concursos</title>
+
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json" />
+
+  <!-- Theme color (afeta cor da barra do navegador / status bar no mobile) -->
+  <meta name="theme-color" content="#0f1f3a" />
+  <meta name="color-scheme" content="light dark" />
+
+  <!-- Apple PWA tags (iOS Safari) -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Aprovado" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png" />
+
+  <!-- Favicons -->
+  <link rel="icon" type="image/svg+xml" href="assets/icons/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16.png" />
+
+  <!-- MS Tiles (Windows) -->
+  <meta name="msapplication-TileColor" content="#0f1f3a" />
+  <meta name="msapplication-tap-highlight" content="no" />
+
+  <!-- Open Graph (compartilhamento social) -->
+  <meta property="og:title" content="Aprovado — Estudos para Concursos" />
+  <meta property="og:description" content="Plataforma inteligente para organizar e otimizar seus estudos para concursos." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="assets/icons/icon-512.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+
+  <!-- Supabase JS Client (deve carregar ANTES do supabase-client.js) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+
+  <!-- Captura erros globais ANTES dos outros scripts carregarem -->
+  <script>
+    window.__ctErrors = [];
+    window.addEventListener('error', function(e) {
+      window.__ctErrors.push({
+        message: e.message,
+        filename: e.filename,
+        lineno: e.lineno,
+        colno: e.colno
+      });
+      showDiagnostic(e.message);
+    });
+    window.addEventListener('unhandledrejection', function(e) {
+      const msg = 'Promise rejeitada: ' + (e.reason && e.reason.message ? e.reason.message : e.reason);
+      window.__ctErrors.push({ message: msg });
+      showDiagnostic(msg);
+    });
+    function showDiagnostic(msg) {
+      try {
+        var diag = document.getElementById('jsErrorDiagnostic');
+        if (!diag) {
+          // Cria dinamicamente se não existir ainda
+          diag = document.createElement('div');
+          diag.id = 'jsErrorDiagnostic';
+          diag.style.cssText = 'padding:30px;margin:20px;background:#fee2e2;border:1px solid #dc2626;border-radius:10px;color:#991b1b;font-family:sans-serif;font-size:14px;z-index:9999;';
+          diag.innerHTML = '<h2 style="margin:0 0 12px;">⚠️ Erro ao carregar o aplicativo</h2>' +
+            '<p><strong>Mensagem:</strong> <span id="jsErrorMsg">—</span></p>' +
+            '<p><strong>URL:</strong> <span id="jsErrorUrl">—</span></p>' +
+            '<p style="margin-top:12px;font-size:13px;">Verifique o Console (F12) para mais detalhes.</p>';
+          document.body.appendChild(diag);
+        }
+        diag.style.display = 'block';
+        var msgEl = document.getElementById('jsErrorMsg');
+        if (msgEl) msgEl.textContent = msg;
+        var urlEl = document.getElementById('jsErrorUrl');
+        if (urlEl) urlEl.textContent = window.location.href;
+      } catch (err) {
+        console.error('Erro no diagnóstico:', err);
+      }
+    }
+    // Detecta falha de carregamento de scripts (ex: 404 em arquivo JS)
+    // NÃO dispara se estiver na tela de login (significa que o App carregou,
+    // só está esperando autenticação). Tampouco dispara se há #access_token
+    // na URL (OAuth acabou de retornar e está processando a sessão).
+    window.addEventListener('DOMContentLoaded', function() {
+      setTimeout(function() {
+        // Se o objeto App nem existe, algo falhou
+        if (typeof App === 'undefined') {
+          var loading = document.getElementById('initialLoading');
+          if (loading) loading.style.display = 'none';
+          showDiagnostic('App não carregou. Provável causa: arquivo JS não carregou (404). Verifique o Console (F12) para erros 404.');
+          return;
+        }
+
+        // Se a tela de login está visível, o App está funcionando (só esperando auth)
+        var loginOverlay = document.getElementById('loginOverlay');
+        if (loginOverlay && !loginOverlay.hidden) {
+          // App carregou, está na tela de login — tudo OK
+          return;
+        }
+
+        // Se há access_token na URL, OAuth está processando — dá mais tempo
+        if (window.location.hash.includes('access_token') || window.location.search.includes('access_token')) {
+          return; // Auth.init() está processando, não mostra erro
+        }
+
+        // Se após 10s não tem view nem login, algo realmente travou
+        if (!App._currentView && !App._appIniciado) {
+          var loading2 = document.getElementById('initialLoading');
+          if (loading2) loading2.style.display = 'none';
+          showDiagnostic('App travou ao inicializar. Verifique o Console (F12) para erros.');
+        }
+      }, 10000);
+    });
+  </script>
+  <!-- Chart.js para visualização de dados -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+  <!-- SheetJS (xlsx) para exportação Excel -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
+  <!-- jsPDF para exportação PDF -->
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js" defer></script>
+</head>
+<body>
+  <!-- =================== LOGIN SCREEN =================== -->
+  <div class="login-overlay" id="loginOverlay" hidden>
+    <div class="login-bg-pattern"></div>
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="login-mark-wrap">
+          <svg class="login-mark" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="lg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#1e3a5f"/>
+                <stop offset="100%" stop-color="#0f1f3a"/>
+              </linearGradient>
+            </defs>
+            <rect width="48" height="48" rx="12" fill="url(#lg-grad)"/>
+            <path d="M14 24 L21 31 L34 17" stroke="#c9a961" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <circle cx="24" cy="24" r="20" stroke="#c9a961" stroke-width="1" fill="none" opacity="0.3"/>
+          </svg>
+        </div>
+        <h1 class="login-title">Aprovado</h1>
+        <p class="login-tagline">Sua jornada começa com organização</p>
+      </div>
+
+      <div class="login-features">
+        <div class="login-feature">
+          <span class="login-feature-icon">📊</span>
+          <div>
+            <strong>Métricas inteligentes</strong>
+            <span>Acompanhe sua evolução</span>
+          </div>
+        </div>
+        <div class="login-feature">
+          <span class="login-feature-icon">⏱️</span>
+          <div>
+            <strong>Cronômetro integrado</strong>
+            <span>Foque no que importa</span>
+          </div>
+        </div>
+        <div class="login-feature">
+          <span class="login-feature-icon">🔁</span>
+          <div>
+            <strong>Revisão espaçada</strong>
+            <span>Fixação de longo prazo</span>
+          </div>
+        </div>
+        <div class="login-feature">
+          <span class="login-feature-icon">💡</span>
+          <div>
+            <strong>Insights personalizados</strong>
+            <span>Decisões baseadas em dados</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="login-action-area">
+        <button class="btn btn-google" id="btnGoogleLogin">
+          <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+          </svg>
+          <span>Entrar com Google</span>
+        </button>
+
+        <div class="login-loading" id="loginLoading" hidden>
+          <div class="spinner"></div>
+          <span>Conectando...</span>
+        </div>
+      </div>
+
+      <p class="login-disclaimer">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: middle; margin-right: 4px;"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+        Dados isolados por usuário · Cada conta vê apenas seus próprios registros
+      </p>
+
+      <div class="login-error" id="loginError" hidden></div>
+
+      <div class="login-footer">
+        <span>Aprovado</span>
+        <span class="login-footer-dot">·</span>
+        <span>Plataforma de estudos</span>
+      </div>
+    </div>
+
+    <!-- Banner elegante de instalar PWA (aparece quando o navegador oferece) -->
+    <div class="pwa-install-banner" id="pwaInstallBanner" hidden>
+      <div class="pwa-banner-icon">
+        <img src="assets/icons/icon-192.png" alt="Aprovado" width="44" height="44" />
+      </div>
+      <div class="pwa-banner-content">
+        <div class="pwa-banner-title">Instalar Aprovado</div>
+        <div class="pwa-banner-desc">Acesse pela tela inicial • funciona offline</div>
+      </div>
+      <button class="pwa-banner-btn" id="pwaInstallBtn">Instalar</button>
+      <button class="pwa-banner-close" id="pwaBannerClose" aria-label="Fechar">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- =================== APP SHELL =================== -->
+  <div class="app-shell" id="appShell">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <div class="logo-mark-wrap">
+            <svg class="logo-mark" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="sb-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#1e3a5f"/>
+                  <stop offset="100%" stop-color="#0f1f3a"/>
+                </linearGradient>
+              </defs>
+              <rect width="48" height="48" rx="12" fill="url(#sb-grad)"/>
+              <path d="M14 24 L21 31 L34 17" stroke="#c9a961" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+              <circle cx="24" cy="24" r="20" stroke="#c9a961" stroke-width="1" fill="none" opacity="0.3"/>
+            </svg>
+          </div>
+          <div class="logo-text">
+            <h1>Aprovado</h1>
+            <p>Plataforma de Estudos</p>
+          </div>
+        </div>
+        <button class="sidebar-toggle" id="sidebarToggle" aria-label="Recolher menu">✕</button>
+      </div>
+
+      <nav class="sidebar-nav" id="sidebarNav">
+        <a href="#" class="nav-item active" data-view="dashboard">
+          <span class="nav-icon">📊</span><span>Dashboard</span>
+        </a>
+        <a href="#" class="nav-item" data-view="concursos">
+          <span class="nav-icon">🎯</span><span>Concursos</span>
+        </a>
+        <a href="#" class="nav-item" data-view="materias">
+          <span class="nav-icon">📐</span><span>Matérias</span>
+        </a>
+        <a href="#" class="nav-item" data-view="conteudos">
+          <span class="nav-icon">📑</span><span>Conteúdos</span>
+        </a>
+        <a href="#" class="nav-item" data-view="cronometro">
+          <span class="nav-icon">⏱️</span><span>Cronômetro</span>
+        </a>
+        <a href="#" class="nav-item" data-view="sessoes">
+          <span class="nav-icon">📝</span><span>Sessões</span>
+        </a>
+        <a href="#" class="nav-item" data-view="anotacoes">
+          <span class="nav-icon">🗒️</span><span>Anotações</span>
+        </a>
+        <a href="#" class="nav-item" data-view="revisoes">
+          <span class="nav-icon">🔁</span><span>Revisões</span>
+          <span class="badge" id="revisoesBadge" hidden>0</span>
+        </a>
+        <a href="#" class="nav-item" data-view="insights">
+          <span class="nav-icon">💡</span><span>Insights</span>
+        </a>
+        <a href="#" class="nav-item" data-view="backup">
+          <span class="nav-icon">💾</span><span>Backup</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="theme-toggle" id="themeToggle" aria-label="Alternar tema">
+          <span class="theme-icon">🌙</span>
+          <span class="theme-label">Tema escuro</span>
+        </button>
+
+        <button class="theme-toggle" id="installAppBtn" hidden>
+          <span class="theme-icon">📲</span>
+          <span class="theme-label">Instalar aplicativo</span>
+        </button>
+
+        <div class="user-card" id="userCard">
+          <div class="user-avatar" id="userAvatar"></div>
+          <div class="user-info">
+            <div class="user-name" id="userName">—</div>
+            <div class="user-email" id="userEmail">—</div>
+          </div>
+          <button class="logout-btn" id="btnLogout" title="Sair da conta" aria-label="Sair">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- Main content -->
+    <main class="main-content">
+      <header class="topbar">
+        <button class="menu-btn" id="menuBtn" aria-label="Abrir menu">☰</button>
+        <div class="topbar-title" id="topbarTitle">Dashboard</div>
+        <div class="topbar-actions">
+          <div class="global-filter">
+            <select id="globalFilterConcurso" title="Filtrar por concurso">
+              <option value="">Todos os concursos</option>
+            </select>
+          </div>
+        </div>
+      </header>
+
+      <div class="view-container" id="viewContainer">
+        <!-- Views injetadas dinamicamente -->
+        <div class="loading" id="initialLoading">Carregando...</div>
+        <noscript>
+          <div style="padding: 40px; text-align: center; color: #dc2626;">
+            <h2>⚠️ JavaScript necessário</h2>
+            <p>Este aplicativo requer JavaScript para funcionar. Habilite o JavaScript no seu navegador.</p>
+          </div>
+        </noscript>
+      </div>
+
+      <!-- Aviso de cache antigo (mostra se a versão do SW for diferente da atual) -->
+      <div id="cacheWarning" style="display:none; padding: 14px 20px; background: #fef3c7; border-left: 4px solid #b8860b; color: #92400e; font-size: 13px; margin: 0; position: fixed; bottom: 0; left: 0; right: 0; z-index: 999;">
+        <strong>⚠️ Versão antiga do app detectada.</strong>
+        <button onclick="location.reload(true)" style="margin-left: 12px; padding: 4px 12px; background: #b8860b; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Atualizar agora</button>
+      </div>
+
+      <!-- Diagnóstico visível caso o JS falhe (será removido quando app.js carregar) -->
+      <div id="jsErrorDiagnostic" style="display:none; padding: 30px; margin: 20px; background: #fee2e2; border: 1px solid #dc2626; border-radius: 10px; color: #991b1b;">
+        <h2 style="margin: 0 0 12px;">⚠️ Erro ao carregar o aplicativo</h2>
+        <p style="margin: 0 0 8px;"><strong>Mensagem:</strong> <span id="jsErrorMsg">—</span></p>
+        <p style="margin: 0 0 8px;"><strong>URL atual:</strong> <span id="jsErrorUrl">—</span></p>
+        <p style="margin: 0 0 8px;"><strong>User-Agent:</strong> <span id="jsErrorUA">—</span></p>
+        <p style="margin: 12px 0 0; font-size: 13px;">
+          💡 Possíveis soluções:<br>
+          1. Verifique se todos os arquivos da pasta <code>js/</code> foram enviados ao repositório.<br>
+          2. Aguarde 1-2 minutos após o deploy (GitHub Pages pode demorar para propagar).<br>
+          3. Force um novo deploy com um commit vazio: <code>git commit --allow-empty -m "trigger deploy" &amp;&amp; git push</code><br>
+          4. Abra o Console do navegador (F12) para ver detalhes do erro.
+        </p>
+      </div>
+    </main>
+  </div>
+
+  <!-- =================== MODAL GENÉRICO =================== -->
+  <div class="modal-overlay" id="modalOverlay" hidden>
+    <div class="modal" id="modal" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <h2 id="modalTitle">Título</h2>
+        <button class="modal-close" id="modalClose" aria-label="Fechar">✕</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-footer" id="modalFooter"></div>
+    </div>
+  </div>
+
+  <!-- =================== TOASTS =================== -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- =================== CONFIRMAÇÃO =================== -->
+  <div class="confirm-overlay" id="confirmOverlay" hidden>
+    <div class="confirm-dialog">
+      <h3 id="confirmTitle">Confirmar</h3>
+      <p id="confirmMessage">Tem certeza?</p>
+      <div class="confirm-actions">
+        <button class="btn btn-ghost" id="confirmCancel">Cancelar</button>
+        <button class="btn btn-danger" id="confirmOk">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =================== SCRIPTS =================== -->
+  <script src="js/utils.js" defer></script>
+  <script src="js/supabase-client.js" defer></script>
+  <script src="js/supabase-auth.js" defer></script>
+  <script src="js/login-screen.js" defer></script>
+  <script src="js/db.js" defer></script>
+  <script src="js/seed.js" defer></script>
+  <script src="js/concursos.js" defer></script>
+  <script src="js/materias.js" defer></script>
+  <script src="js/conteudos.js" defer></script>
+  <script src="js/sessoes.js" defer></script>
+  <script src="js/anotacoes.js" defer></script>
+  <script src="js/revisoes.js" defer></script>
+  <script src="js/dashboard.js" defer></script>
+  <script src="js/insights.js" defer></script>
+  <script src="js/backup.js" defer></script>
+  <script src="js/app.js" defer></script>
+  <script src="js/pwa-install.js" defer></script>
+
+  <!-- PWA: registra o Service Worker (apenas em HTTPS ou localhost) -->
+  <script>
+    (function() {
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('./service-worker.js', { scope: './' })
+            .then(function(reg) {
+              console.log('[PWA] Service Worker registrado:', reg.scope);
+
+              // Verifica atualizações periodicamente
+              reg.addEventListener('updatefound', function() {
+                const newWorker = reg.installing;
+                newWorker.addEventListener('statechange', function() {
+                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    // Nova versão disponível — recarrega silenciosamente
+                    console.log('[PWA] Nova versão disponível, recarregando...');
+                    newWorker.postMessage({ type: 'SKIP_WAITING' });
+                  }
+                });
+              });
+            })
+            .catch(function(err) {
+              console.warn('[PWA] Falha ao registrar Service Worker:', err);
+            });
+        });
+
+        // Recarrega quando o novo SW assume o controle
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', function() {
+          if (refreshing) return;
+          refreshing = true;
+          window.location.reload();
+        });
+      } else {
+        console.warn('[PWA] Service Worker não suportado neste navegador.');
+      }
+    })();
+  </script>
+</body>
+</html>
