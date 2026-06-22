@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Aplicativo web para organização e otimização de estudos para concursos públicos" />
+  <title>ConcursoTrack — Organizador de Estudos</title>
+  <link rel="stylesheet" href="css/style.css" />
+
+  <!-- Supabase JS Client (deve carregar ANTES do supabase-client.js) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+
+  <!-- Captura erros globais ANTES dos outros scripts carregarem -->
+  <script>
+    window.__ctErrors = [];
+    window.addEventListener('error', function(e) {
+      window.__ctErrors.push({
+        message: e.message,
+        filename: e.filename,
+        lineno: e.lineno,
+        colno: e.colno
+      });
+      showDiagnostic(e.message);
+    });
+    window.addEventListener('unhandledrejection', function(e) {
+      const msg = 'Promise rejeitada: ' + (e.reason && e.reason.message ? e.reason.message : e.reason);
+      window.__ctErrors.push({ message: msg });
+      showDiagnostic(msg);
+    });
+    function showDiagnostic(msg) {
+      try {
+        var diag = document.getElementById('jsErrorDiagnostic');
+        if (!diag) {
+          // Cria dinamicamente se não existir ainda
+          diag = document.createElement('div');
+          diag.id = 'jsErrorDiagnostic';
+          diag.style.cssText = 'padding:30px;margin:20px;background:#fee2e2;border:1px solid #dc2626;border-radius:10px;color:#991b1b;font-family:sans-serif;font-size:14px;z-index:9999;';
+          diag.innerHTML = '<h2 style="margin:0 0 12px;">⚠️ Erro ao carregar o aplicativo</h2>' +
+            '<p><strong>Mensagem:</strong> <span id="jsErrorMsg">—</span></p>' +
+            '<p><strong>URL:</strong> <span id="jsErrorUrl">—</span></p>' +
+            '<p style="margin-top:12px;font-size:13px;">Verifique o Console (F12) para mais detalhes.</p>';
+          document.body.appendChild(diag);
+        }
+        diag.style.display = 'block';
+        var msgEl = document.getElementById('jsErrorMsg');
+        if (msgEl) msgEl.textContent = msg;
+        var urlEl = document.getElementById('jsErrorUrl');
+        if (urlEl) urlEl.textContent = window.location.href;
+      } catch (err) {
+        console.error('Erro no diagnóstico:', err);
+      }
+    }
+    // Detecta falha de carregamento de scripts (ex: 404 em arquivo JS)
+    window.addEventListener('DOMContentLoaded', function() {
+      setTimeout(function() {
+        // Se após 3s o App não inicializou, mostra diagnóstico
+        if (typeof App === 'undefined' || !App._currentView) {
+          var loading = document.getElementById('initialLoading');
+          if (loading) loading.style.display = 'none';
+          showDiagnostic('App não inicializou após 3 segundos. Provável causa: arquivo JS não carregou (404). Verifique o Console (F12) para erros 404.');
+        }
+      }, 3000);
+    });
+  </script>
+  <!-- Chart.js para visualização de dados -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+  <!-- SheetJS (xlsx) para exportação Excel -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
+  <!-- jsPDF para exportação PDF -->
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js" defer></script>
+</head>
+<body>
+  <!-- =================== LOGIN SCREEN =================== -->
+  <div class="login-overlay" id="loginOverlay" hidden>
+    <div class="login-card">
+      <div class="login-logo">
+        <span class="login-mark">📚</span>
+        <h1>ConcursoTrack</h1>
+        <p>Seu organizador de estudos para concursos públicos</p>
+      </div>
+
+      <div class="login-features">
+        <div class="login-feature">
+          <span>📊</span>
+          <span>Dashboard com métricas de desempenho</span>
+        </div>
+        <div class="login-feature">
+          <span>⏱️</span>
+          <span>Cronômetro integrado com avaliação</span>
+        </div>
+        <div class="login-feature">
+          <span>🔁</span>
+          <span>Revisão espaçada automática</span>
+        </div>
+        <div class="login-feature">
+          <span>💡</span>
+          <span>Insights inteligentes personalizados</span>
+        </div>
+      </div>
+
+      <button class="btn btn-google" id="btnGoogleLogin">
+        <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+        </svg>
+        <span>Entrar com Google</span>
+      </button>
+
+      <div class="login-loading" id="loginLoading" hidden>
+        <div class="spinner"></div>
+        <span>Conectando...</span>
+      </div>
+
+      <p class="login-disclaimer">
+        🔒 Seus dados ficam isolados por usuário.<br>
+        Cada conta vê apenas seus próprios concursos, sessões e anotações.
+      </p>
+
+      <div class="login-error" id="loginError" hidden></div>
+    </div>
+  </div>
+
+  <!-- =================== APP SHELL =================== -->
+  <div class="app-shell" id="appShell">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <span class="logo-mark">📚</span>
+          <div class="logo-text">
+            <h1>ConcursoTrack</h1>
+            <p>Organizador de Estudos</p>
+          </div>
+        </div>
+        <button class="sidebar-toggle" id="sidebarToggle" aria-label="Recolher menu">✕</button>
+      </div>
+
+      <nav class="sidebar-nav" id="sidebarNav">
+        <a href="#" class="nav-item active" data-view="dashboard">
+          <span class="nav-icon">📊</span><span>Dashboard</span>
+        </a>
+        <a href="#" class="nav-item" data-view="concursos">
+          <span class="nav-icon">🎯</span><span>Concursos</span>
+        </a>
+        <a href="#" class="nav-item" data-view="materias">
+          <span class="nav-icon">📐</span><span>Matérias</span>
+        </a>
+        <a href="#" class="nav-item" data-view="conteudos">
+          <span class="nav-icon">📑</span><span>Conteúdos</span>
+        </a>
+        <a href="#" class="nav-item" data-view="cronometro">
+          <span class="nav-icon">⏱️</span><span>Cronômetro</span>
+        </a>
+        <a href="#" class="nav-item" data-view="sessoes">
+          <span class="nav-icon">📝</span><span>Sessões</span>
+        </a>
+        <a href="#" class="nav-item" data-view="anotacoes">
+          <span class="nav-icon">🗒️</span><span>Anotações</span>
+        </a>
+        <a href="#" class="nav-item" data-view="revisoes">
+          <span class="nav-icon">🔁</span><span>Revisões</span>
+          <span class="badge" id="revisoesBadge" hidden>0</span>
+        </a>
+        <a href="#" class="nav-item" data-view="insights">
+          <span class="nav-icon">💡</span><span>Insights</span>
+        </a>
+        <a href="#" class="nav-item" data-view="backup">
+          <span class="nav-icon">💾</span><span>Backup</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="theme-toggle" id="themeToggle" aria-label="Alternar tema">
+          <span class="theme-icon">🌙</span>
+          <span class="theme-label">Tema escuro</span>
+        </button>
+
+        <div class="user-card" id="userCard">
+          <div class="user-avatar" id="userAvatar"></div>
+          <div class="user-info">
+            <div class="user-name" id="userName">—</div>
+            <div class="user-email" id="userEmail">—</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" id="btnLogout" title="Sair">🚪</button>
+        </div>
+      </div>
+    </aside>
+
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- Main content -->
+    <main class="main-content">
+      <header class="topbar">
+        <button class="menu-btn" id="menuBtn" aria-label="Abrir menu">☰</button>
+        <div class="topbar-title" id="topbarTitle">Dashboard</div>
+        <div class="topbar-actions">
+          <div class="global-filter">
+            <select id="globalFilterConcurso" title="Filtrar por concurso">
+              <option value="">Todos os concursos</option>
+            </select>
+          </div>
+        </div>
+      </header>
+
+      <div class="view-container" id="viewContainer">
+        <!-- Views injetadas dinamicamente -->
+        <div class="loading" id="initialLoading">Carregando...</div>
+        <noscript>
+          <div style="padding: 40px; text-align: center; color: #dc2626;">
+            <h2>⚠️ JavaScript necessário</h2>
+            <p>Este aplicativo requer JavaScript para funcionar. Habilite o JavaScript no seu navegador.</p>
+          </div>
+        </noscript>
+      </div>
+
+      <!-- Diagnóstico visível caso o JS falhe (será removido quando app.js carregar) -->
+      <div id="jsErrorDiagnostic" style="display:none; padding: 30px; margin: 20px; background: #fee2e2; border: 1px solid #dc2626; border-radius: 10px; color: #991b1b;">
+        <h2 style="margin: 0 0 12px;">⚠️ Erro ao carregar o aplicativo</h2>
+        <p style="margin: 0 0 8px;"><strong>Mensagem:</strong> <span id="jsErrorMsg">—</span></p>
+        <p style="margin: 0 0 8px;"><strong>URL atual:</strong> <span id="jsErrorUrl">—</span></p>
+        <p style="margin: 0 0 8px;"><strong>User-Agent:</strong> <span id="jsErrorUA">—</span></p>
+        <p style="margin: 12px 0 0; font-size: 13px;">
+          💡 Possíveis soluções:<br>
+          1. Verifique se todos os arquivos da pasta <code>js/</code> foram enviados ao repositório.<br>
+          2. Aguarde 1-2 minutos após o deploy (GitHub Pages pode demorar para propagar).<br>
+          3. Force um novo deploy com um commit vazio: <code>git commit --allow-empty -m "trigger deploy" &amp;&amp; git push</code><br>
+          4. Abra o Console do navegador (F12) para ver detalhes do erro.
+        </p>
+      </div>
+    </main>
+  </div>
+
+  <!-- =================== MODAL GENÉRICO =================== -->
+  <div class="modal-overlay" id="modalOverlay" hidden>
+    <div class="modal" id="modal" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <h2 id="modalTitle">Título</h2>
+        <button class="modal-close" id="modalClose" aria-label="Fechar">✕</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-footer" id="modalFooter"></div>
+    </div>
+  </div>
+
+  <!-- =================== TOASTS =================== -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- =================== CONFIRMAÇÃO =================== -->
+  <div class="confirm-overlay" id="confirmOverlay" hidden>
+    <div class="confirm-dialog">
+      <h3 id="confirmTitle">Confirmar</h3>
+      <p id="confirmMessage">Tem certeza?</p>
+      <div class="confirm-actions">
+        <button class="btn btn-ghost" id="confirmCancel">Cancelar</button>
+        <button class="btn btn-danger" id="confirmOk">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =================== SCRIPTS =================== -->
+  <script src="js/utils.js" defer></script>
+  <script src="js/supabase-client.js" defer></script>
+  <script src="js/supabase-auth.js" defer></script>
+  <script src="js/login-screen.js" defer></script>
+  <script src="js/db.js" defer></script>
+  <script src="js/seed.js" defer></script>
+  <script src="js/concursos.js" defer></script>
+  <script src="js/materias.js" defer></script>
+  <script src="js/conteudos.js" defer></script>
+  <script src="js/sessoes.js" defer></script>
+  <script src="js/anotacoes.js" defer></script>
+  <script src="js/revisoes.js" defer></script>
+  <script src="js/dashboard.js" defer></script>
+  <script src="js/insights.js" defer></script>
+  <script src="js/backup.js" defer></script>
+  <script src="js/app.js" defer></script>
+</body>
+</html>
